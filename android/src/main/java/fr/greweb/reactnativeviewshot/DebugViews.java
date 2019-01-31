@@ -84,9 +84,9 @@ public final class DebugViews {
         stack.push(Pair.create("", root));
 
         while (!stack.empty()) {
-            @NonNull final Pair<String, View> p = stack.pop();
-            @NonNull final View v = p.second;
-            @NonNull final String prefix = p.first;
+            final Pair<String, View> p = stack.pop();
+            final View v = p.second;
+            final String prefix = p.first;
 
             final boolean isLastOnLevel = stack.empty() || !prefix.equals(stack.peek().first);
             final String graphics = "" + prefix + (isLastOnLevel ? "└── " : "├── ");

@@ -106,6 +106,38 @@ export function captureRef(
   return RNViewShot.captureRef(view, options);
 }
 
+export function captureRefList(
+  viewRefList: array,
+  optionsObject?: Object
+): Promise<string> {
+  if (!viewRefList) {
+    return Promise.reject(
+      new Error("viewRefList is null")
+    );
+  }
+
+  let refList = [];
+  for (let i = 0; i < viewRefList.length; i++) {
+    let item = viewRefList[i];
+    const node = findNodeHandle(item);
+    if (!node) {
+      return Promise.reject(
+        new Error("findNodeHandle failed to resolve view=" + String(item))
+      );
+    }
+    refList.push(node)
+  }
+
+  const { options, errors } = validateOptions(optionsObject);
+  if (__DEV__ && errors.length > 0) {
+    console.warn(
+      "react-native-view-shot: bad options:\n" +
+      errors.map(e => `- ${e}`).join("\n")
+    );
+  }
+  return RNViewShot.captureRefList({viewRefArr: refList}, options);
+}
+
 export function releaseCapture(uri: string): void {
   if (typeof uri !== "string") {
     if (__DEV__) {

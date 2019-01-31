@@ -113,7 +113,7 @@ public class ViewShot implements UIBlock {
     //endregion
 
     //region Class members
-    private final int tag;
+    private final int[] tagList;
     private final String extension;
     @Formats
     private final int format;
@@ -130,10 +130,14 @@ public class ViewShot implements UIBlock {
     private final Activity currentActivity;
     //endregion
 
+    private int viewsWidth;
+    private int viewsHeight;
+
+
     //region Constructors
     @SuppressWarnings("WeakerAccess")
     public ViewShot(
-            final int tag,
+            final int[] tagList,
             final String extension,
             @Formats final int format,
             final double quality,
@@ -145,7 +149,7 @@ public class ViewShot implements UIBlock {
             final ReactApplicationContext reactContext,
             final Activity currentActivity,
             final Promise promise) {
-        this.tag = tag;
+        this.tagList = tagList;
         this.extension = extension;
         this.format = format;
         this.quality = quality;
@@ -157,29 +161,51 @@ public class ViewShot implements UIBlock {
         this.reactContext = reactContext;
         this.currentActivity = currentActivity;
         this.promise = promise;
+        viewsWidth = 0;
+        viewsHeight = 0;
     }
     //endregion
 
     //region Overrides
     @Override
     public void execute(NativeViewHierarchyManager nativeViewHierarchyManager) {
-        final View view;
+        final ArrayList<View> view = new ArrayList<View>();
 
-        if (tag == -1) {
-            view = currentActivity.getWindow().getDecorView().findViewById(android.R.id.content);
-        } else {
-            view = nativeViewHierarchyManager.resolveView(tag);
+        for (int i = 0; i < tagList.length; i++) {
+            int tag = tagList[i];
+            View tagView;
+            if (tag == -1) {
+                tagView = currentActivity.getWindow().getDecorView().findViewById(android.R.id.content);
+            } else {
+                tagView = nativeViewHierarchyManager.resolveView(tag);
+            }
+
+            if (tagView != null) {
+                viewsWidth = Math.max(viewsWidth, tagView.getWidth());
+
+                if (snapshotContentContainer && tagView instanceof ScrollView) {
+                    int h = 0;
+                    ScrollView scrollView = (ScrollView) tagView;
+                    for (int j = 0; j < scrollView.getChildCount(); j++) {
+                        h += scrollView.getChildAt(j).getHeight();
+                    }
+                    viewsHeight += h;
+                } else {
+                    viewsHeight += tagView.getHeight();
+                }
+                view.add(tagView);
+            }
         }
 
-        if (view == null) {
-            Log.e(TAG, "No view found with reactTag: " + tag, new AssertionError());
-            promise.reject(ERROR_UNABLE_TO_SNAPSHOT, "No view found with reactTag: " + tag);
+        if (view.size() == 0) {
+            Log.e(TAG, "No view found with reactTag: " + tagList[0], new AssertionError());
+            promise.reject(ERROR_UNABLE_TO_SNAPSHOT, "No view found with reactTag: " + tagList[0]);
             return;
         }
 
         try {
             final ReusableByteArrayOutputStream stream = new ReusableByteArrayOutputStream(outputBuffer);
-            stream.setSize(proposeSize(view));
+            stream.setSize(Math.min(viewsWidth * viewsHeight * ARGB_SIZE, 32));
             outputBuffer = stream.innerBuffer();
 
             if (Results.TEMP_FILE.equals(result) && Formats.RAW == this.format) {
@@ -199,14 +225,14 @@ public class ViewShot implements UIBlock {
     //endregion
 
     //region Implementation
-    private void saveToTempFileOnDevice(@NonNull final View view) throws IOException {
+    private void saveToTempFileOnDevice(@NonNull final ArrayList view) throws IOException {
         final FileOutputStream fos = new FileOutputStream(output);
         captureView(view, fos);
 
         promise.resolve(Uri.fromFile(output).toString());
     }
 
-    private void saveToRawFileOnDevice(@NonNull final View view) throws IOException {
+    private void saveToRawFileOnDevice(@NonNull final ArrayList view) throws IOException {
         final String uri = Uri.fromFile(output).toString();
 
         final FileOutputStream fos = new FileOutputStream(output);
@@ -225,7 +251,7 @@ public class ViewShot implements UIBlock {
         promise.resolve(uri);
     }
 
-    private void saveToDataUriString(@NonNull final View view) throws IOException {
+    private void saveToDataUriString(@NonNull final ArrayList view) throws IOException {
         final ReusableByteArrayOutputStream os = new ReusableByteArrayOutputStream(outputBuffer);
         captureView(view, os);
 
@@ -240,7 +266,7 @@ public class ViewShot implements UIBlock {
         promise.resolve("data:image/" + imageFormat + ";base64," + data);
     }
 
-    private void saveToBase64String(@NonNull final View view) throws IOException {
+    private void saveToBase64String(@NonNull final ArrayList view) throws IOException {
         final boolean isRaw = Formats.RAW == this.format;
         final boolean isZippedBase64 = Results.ZIP_BASE_64.equals(this.result);
 
@@ -297,11 +323,11 @@ public class ViewShot implements UIBlock {
     }
 
     /**
-     * Wrap {@link #captureViewImpl(View, OutputStream)} call and on end close output stream.
+     * Wrap {@link #captureViewImpl(ArrayList, OutputStream)} call and on end close output stream.
      */
-    private Point captureView(@NonNull final View view, @NonNull final OutputStream os) throws IOException {
+    private Point captureView(@NonNull final ArrayList view, @NonNull final OutputStream os) throws IOException {
         try {
-            DebugViews.longDebug(TAG, DebugViews.logViewHierarchy(this.currentActivity));
+//            DebugViews.longDebug(TAG, DebugViews.logViewHierarchy(this.currentActivity));
 
             return captureViewImpl(view, os);
         } finally {
@@ -312,68 +338,46 @@ public class ViewShot implements UIBlock {
     /**
      * Screenshot a view and return the captured bitmap.
      *
-     * @param view the view to capture
+     * @param viewList the view to capture
      * @return screenshot resolution, Width * Height
      */
-    private Point captureViewImpl(@NonNull final View view, @NonNull final OutputStream os) {
-        int w = view.getWidth();
-        int h = view.getHeight();
-
-        if (w <= 0 || h <= 0) {
-            throw new RuntimeException("Impossible to snapshot the view: view is invalid");
-        }
-
-        // evaluate real height
-        if (snapshotContentContainer) {
-            h = 0;
-            ScrollView scrollView = (ScrollView) view;
-            for (int i = 0; i < scrollView.getChildCount(); i++) {
-                h += scrollView.getChildAt(i).getHeight();
-            }
-        }
-
-        final Point resolution = new Point(w, h);
-        Bitmap bitmap = getBitmapForScreenshot(w, h);
+    private Point captureViewImpl(@NonNull final ArrayList<View> viewList, @NonNull final OutputStream os) {
+        Bitmap bitmap = getBitmapForScreenshot(viewsWidth, viewsHeight);
+        Canvas c = new Canvas(bitmap);
+        c.drawColor(Color.WHITE);
 
         final Paint paint = new Paint();
         paint.setAntiAlias(true);
         paint.setFilterBitmap(true);
         paint.setDither(true);
 
-        // Uncomment next line if you want to wait attached android studio debugger:
-        //   Debug.waitForDebugger();
+        int lastViewHeight = 0;
+        for (View view : viewList) {
+            int w = view.getWidth();
+            int h = view.getHeight();
 
-        final Canvas c = new Canvas(bitmap);
-        view.draw(c);
+            if (w <= 0 || h <= 0) {
+                throw new RuntimeException("Impossible to snapshot the view: view is invalid");
+            }
 
-        //after view is drawn, go through children
-        final List<View> childrenList = getAllChildren(view);
-
-        for (final View child : childrenList) {
-            // skip any child that we don't know how to process
-            if (!(child instanceof TextureView)) continue;
-
-            // skip all invisible to user child views
-            if (child.getVisibility() != VISIBLE) continue;
-
-            final TextureView tvChild = (TextureView) child;
-            tvChild.setOpaque(false); // <-- switch off background fill
-
-            // NOTE (olku): get re-usable bitmap. TextureView should use bitmaps with matching size,
-            // otherwise content of the TextureView will be scaled to provided bitmap dimensions
-            final Bitmap childBitmapBuffer = tvChild.getBitmap(getExactBitmapForScreenshot(child.getWidth(), child.getHeight()));
+            // evaluate real height
+            if (snapshotContentContainer && view instanceof ScrollView) {
+                h = 0;
+                ScrollView scrollView = (ScrollView) view;
+                for (int i = 0; i < scrollView.getChildCount(); i++) {
+                    h += scrollView.getChildAt(i).getHeight();
+                }
+            }
 
             final int countCanvasSave = c.save();
-            applyTransformations(c, view, child);
-
-            // due to re-use of bitmaps for screenshot, we can get bitmap that is bigger in size than requested
-            c.drawBitmap(childBitmapBuffer, 0, 0, paint);
-
+            c.translate(0, lastViewHeight);
+            view.draw(c);
             c.restoreToCount(countCanvasSave);
-            recycleBitmap(childBitmapBuffer);
+
+            lastViewHeight = h;
         }
 
-        if (width != null && height != null && (width != w || height != h)) {
+        if (width != null && height != null && (width != viewsWidth || height != viewsHeight)) {
             final Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true);
             recycleBitmap(bitmap);
 
@@ -382,7 +386,7 @@ public class ViewShot implements UIBlock {
 
         // special case, just save RAW ARGB array without any compression
         if (Formats.RAW == this.format && os instanceof ReusableByteArrayOutputStream) {
-            final int total = w * h * ARGB_SIZE;
+            final int total = viewsWidth * viewsHeight * ARGB_SIZE;
             final ReusableByteArrayOutputStream rbaos = cast(os);
             bitmap.copyPixelsToBuffer(rbaos.asBuffer(total));
             rbaos.setSize(total);
@@ -393,6 +397,8 @@ public class ViewShot implements UIBlock {
         }
 
         recycleBitmap(bitmap);
+
+        final Point resolution = new Point(viewsWidth, viewsHeight);
 
         return resolution; // return image width and height
     }

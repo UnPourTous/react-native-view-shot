@@ -87,6 +87,7 @@ declare module 'react-native-view-shot' {
      */
     export function captureRef(viewRef: ReactInstance, options?: CaptureOptions): Promise<string>
 
+    export function captureRefList(viewRefList: array, options?: CaptureOptions): Promise<string>
     /**
      * This method release a previously captured uri. For tmpfile it will clean them out, for other result types it
      * just won't do anything.

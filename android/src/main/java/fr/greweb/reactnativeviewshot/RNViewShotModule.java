@@ -15,6 +15,7 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.uimanager.UIManagerModule;
 
@@ -67,43 +68,24 @@ public class RNViewShotModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void captureRef(int tag, ReadableMap options, Promise promise) {
-        final ReactApplicationContext context = getReactApplicationContext();
-        final DisplayMetrics dm = context.getResources().getDisplayMetrics();
-
-        final String extension = options.getString("format");
-        final int imageFormat = "jpg".equals(extension)
-                ? Formats.JPEG
-                : "webm".equals(extension)
-                ? Formats.WEBP
-                : "raw".equals(extension)
-                ? Formats.RAW
-                : Formats.PNG;
-
-        final double quality = options.getDouble("quality");
-        final Integer scaleWidth = options.hasKey("width") ? (int) (dm.density * options.getDouble("width")) : null;
-        final Integer scaleHeight = options.hasKey("height") ? (int) (dm.density * options.getDouble("height")) : null;
-        final String resultStreamFormat = options.getString("result");
-        final Boolean snapshotContentContainer = options.getBoolean("snapshotContentContainer");
-
-        try {
-            File outputFile = null;
-            if (Results.TEMP_FILE.equals(resultStreamFormat)) {
-                outputFile = createTempFile(getReactApplicationContext(), extension);
+    public void captureRefList(ReadableMap viewRef, ReadableMap options, Promise promise) {
+        ReadableArray array = viewRef.getArray("viewRefArr");
+        if (array != null && array.size() > 0) {
+            int count = array.size();
+            int[] tags = new int[count];
+            for (int i = 0; i < count; i++) {
+                tags[i] = array.getInt(i);
             }
 
-            final Activity activity = getCurrentActivity();
-            final UIManagerModule uiManager = this.reactContext.getNativeModule(UIManagerModule.class);
-
-            uiManager.addUIBlock(new ViewShot(
-                    tag, extension, imageFormat, quality,
-                    scaleWidth, scaleHeight, outputFile, resultStreamFormat,
-                    snapshotContentContainer, reactContext, activity, promise)
-            );
-        } catch (final Throwable ex) {
-            Log.e(RNVIEW_SHOT, "Failed to snapshot view tag " + tag, ex);
-            promise.reject(ViewShot.ERROR_UNABLE_TO_SNAPSHOT, "Failed to snapshot view tag " + tag);
+            doCapture(tags, options, promise);
+        } else {
+            promise.reject(ViewShot.ERROR_UNABLE_TO_SNAPSHOT, "params error");
         }
+    }
+
+    @ReactMethod
+    public void captureRef(int tag, ReadableMap options, Promise promise) {
+        doCapture(new int[]{tag}, options, promise);
     }
 
     @ReactMethod
@@ -158,14 +140,54 @@ public class RNViewShotModule extends ReactContextBaseJavaModule {
         }
     }
 
+    private void doCapture (int[] tags, ReadableMap options, Promise promise) {
+        final ReactApplicationContext context = getReactApplicationContext();
+        final DisplayMetrics dm = context.getResources().getDisplayMetrics();
+
+        final String extension = options.getString("format");
+        final int imageFormat = "jpg".equals(extension)
+                ? Formats.JPEG
+                : "webm".equals(extension)
+                ? Formats.WEBP
+                : "raw".equals(extension)
+                ? Formats.RAW
+                : Formats.PNG;
+
+        final double quality = options.getDouble("quality");
+        final Integer scaleWidth = options.hasKey("width") ? (int) (dm.density * options.getDouble("width")) : null;
+        final Integer scaleHeight = options.hasKey("height") ? (int) (dm.density * options.getDouble("height")) : null;
+        final String resultStreamFormat = options.getString("result");
+        final Boolean snapshotContentContainer = options.getBoolean("snapshotContentContainer");
+        final Boolean useInternalStorage = options.hasKey("useInternalStorage") && options.getBoolean("useInternalStorage");
+
+        try {
+            File outputFile = null;
+            if (Results.TEMP_FILE.equals(resultStreamFormat)) {
+                outputFile = createTempFile(getReactApplicationContext(), extension, useInternalStorage);
+            }
+
+            final Activity activity = getCurrentActivity();
+            final UIManagerModule uiManager = this.reactContext.getNativeModule(UIManagerModule.class);
+
+            uiManager.addUIBlock(new ViewShot(
+                            tags, extension, imageFormat, quality,
+                            scaleWidth, scaleHeight, outputFile, resultStreamFormat,
+                            snapshotContentContainer, reactContext, activity, promise)
+            );
+        } catch (final Throwable ex) {
+            Log.e(RNVIEW_SHOT, "Failed to snapshot view tag ", ex);
+            promise.reject(ViewShot.ERROR_UNABLE_TO_SNAPSHOT, "Failed to snapshot view tag ");
+        }
+    }
+
     /**
      * Create a temporary file in the cache directory on either internal or external storage,
      * whichever is available and has more free space.
      */
     @NonNull
-    private File createTempFile(@NonNull final Context context, @NonNull final String ext) throws IOException {
+    private File createTempFile(@NonNull final Context context, @NonNull final String ext, final Boolean useInternalStorage) throws IOException {
         final File externalCacheDir = context.getExternalCacheDir();
-        final File internalCacheDir = context.getCacheDir();
+        final File internalCacheDir = useInternalStorage ? context.getCacheDir() : null;
         final File cacheDir;
 
         if (externalCacheDir == null && internalCacheDir == null) {
