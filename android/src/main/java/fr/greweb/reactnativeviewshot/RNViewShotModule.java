@@ -93,7 +93,7 @@ public class RNViewShotModule extends ReactContextBaseJavaModule {
         captureRef(-1, options, promise);
     }
 
-    private static final String TEMP_FILE_PREFIX = "ReactNative-snapshot-image";
+    private static final String TEMP_FILE_PREFIX = "snapshot-image";
 
     /**
      * Asynchronous task that cleans up cache dirs (internal and, if available, external) of cropped

@@ -31,7 +31,7 @@ RCT_EXPORT_METHOD(captureScreen: (NSDictionary *)options
 
 RCT_EXPORT_METHOD(releaseCapture:(nonnull NSString *)uri)
 {
-  NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"ReactNative"];
+  NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"snapshot"];
   // Ensure it's a valid file in the tmp directory
   if ([uri hasPrefix:directory] && ![uri isEqualToString:directory]) {
     NSFileManager *fileManager = [NSFileManager new];
