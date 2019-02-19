@@ -120,6 +120,7 @@ public class ViewShot implements UIBlock {
     @Formats
     private final int format;
     private final double quality;
+    private final String backgroundColor;
     private final Integer width;
     private final Integer height;
     private final File output;
@@ -145,6 +146,7 @@ public class ViewShot implements UIBlock {
             final String extension,
             @Formats final int format,
             final double quality,
+            final String backgroundColor,
             @Nullable Integer width,
             @Nullable Integer height,
             final File output,
@@ -162,6 +164,7 @@ public class ViewShot implements UIBlock {
         this.height = height;
         this.output = output;
         this.result = result;
+        this.backgroundColor = backgroundColor;
         this.saveToPhotosAlbum = saveToPhotosAlbum;
         this.snapshotContentContainer = snapshotContentContainer;
         this.reactContext = reactContext;
@@ -350,7 +353,7 @@ public class ViewShot implements UIBlock {
     private Point captureViewImpl(@NonNull final ArrayList<View> viewList, @NonNull final OutputStream os) {
         Bitmap bitmap = getBitmapForScreenshot(viewsWidth, viewsHeight);
         Canvas c = new Canvas(bitmap);
-        c.drawColor(Color.WHITE);
+        c.drawColor(Color.parseColor(this.backgroundColor));
 
         final Paint paint = new Paint();
         paint.setAntiAlias(true);

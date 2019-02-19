@@ -10,6 +10,7 @@
 #import <React/RCTUIManagerUtils.h>
 #endif
 #import <React/RCTBridge.h>
+#import <Photos/Photos.h>
 
 @implementation RNViewShot
 
@@ -72,6 +73,7 @@ RCT_EXPORT_METHOD(captureRef:(nonnull NSNumber *)target
         // Get options
         NSString *format = [RCTConvert NSString:options[@"format"]];
         NSString *result = [RCTConvert NSString:options[@"result"]];
+        NSString *backgroundColor = [options objectForKey:@"backgroundColor"];
         BOOL snapshotContentContainer = [RCTConvert BOOL:options[@"snapshotContentContainer"]];
         BOOL saveToPhotosAlbum = [RCTConvert BOOL:options[@"saveToPhotosAlbum"]];
 
@@ -159,11 +161,14 @@ RCT_EXPORT_METHOD(captureRef:(nonnull NSNumber *)target
                 UIGraphicsEndImageContext();
                 lastImage = togetherImage;
             }
-//            [imageArray addObject:image];
         }
         
+        UIColor* color = [self colorWithHexString:(backgroundColor != nil ? backgroundColor : @"#f7f7f7") alpha:1.0];
+        lastImage = [self setBackgroundColor:lastImage withColor:color];
+
         if (saveToPhotosAlbum) {
-            UIImageWriteToSavedPhotosAlbum(lastImage, nil, nil, nil);
+            UIImageWriteToSavedPhotosAlbum(lastImage, self, @selector(image:didFinishSavingWithError:contextInfo:), nil);
+//            [self loadImageFinished:lastImage];
         }
 
         // Convert image to data (on a background thread)
@@ -210,6 +215,76 @@ RCT_EXPORT_METHOD(captureRef:(nonnull NSNumber *)target
             else reject(RCTErrorUnspecified, @"viewshot unknown error", nil);
         });
     }];
+}
+
+//- (void)loadImageFinished:(UIImage *)image
+//{
+//    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+//        // 写入图片到相册
+//        PHAssetChangeRequest *req = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+//    } completionHandler:^(BOOL success, NSError * _Nullable error) {
+//        NSLog(@"success = %d, error = %@", success, error);
+//    }];
+//}
+
+- (UIImage *)setBackgroundColor:(UIImage *)image withColor:(UIColor *)color
+{
+    CGRect rect = CGRectMake(0.0f, 0.0f, image.size.width, image.size.height);
+    UIGraphicsBeginImageContextWithOptions(rect.size, NO, image.scale);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextSetFillColorWithColor(context, [color CGColor]);
+    CGContextSetBlendMode(context, kCGBlendModeNormal);
+    CGContextFillRect(context, rect);
+
+    [image drawInRect:rect];
+    UIImage*newImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return newImage;
+}
+
+//必要实现的协议方法, 不然会崩溃
+- (void)image:(UIImage *)image didFinishSavingWithError:(NSError *)error contextInfo:(void *)contextInfo {
+    NSLog(@"image = %@, error = %@, contextInfo = %@", image, error, contextInfo);
+}
+
+- (UIColor *) colorWithHexString: (NSString *)color alpha:(float)opacity
+{
+    NSString *cString = [[color stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] uppercaseString];
+    
+    // String should be 6 or 8 characters
+    if ([cString length] < 6) {
+        return [UIColor clearColor];
+    }
+    
+    // 判断前缀并剪切掉
+    if ([cString hasPrefix:@"0X"])
+        cString = [cString substringFromIndex:2];
+    if ([cString hasPrefix:@"#"])
+        cString = [cString substringFromIndex:1];
+    if ([cString length] != 6)
+        return [UIColor clearColor];
+    
+    // 从六位数值中找到RGB对应的位数并转换
+    NSRange range;
+    range.location = 0;
+    range.length = 2;
+    
+    //R、G、B
+    NSString *rString = [cString substringWithRange:range];
+    
+    range.location = 2;
+    NSString *gString = [cString substringWithRange:range];
+    
+    range.location = 4;
+    NSString *bString = [cString substringWithRange:range];
+    
+    // Scan values
+    unsigned int r, g, b;
+    [[NSScanner scannerWithString:rString] scanHexInt:&r];
+    [[NSScanner scannerWithString:gString] scanHexInt:&g];
+    [[NSScanner scannerWithString:bString] scanHexInt:&b];
+    
+    return [UIColor colorWithRed:((float) r / 255.0f) green:((float) g / 255.0f) blue:((float) b / 255.0f) alpha:opacity];
 }
 
 @end
