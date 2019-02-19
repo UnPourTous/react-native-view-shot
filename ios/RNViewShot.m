@@ -31,7 +31,7 @@ RCT_EXPORT_METHOD(captureScreen: (NSDictionary *)options
 
 RCT_EXPORT_METHOD(releaseCapture:(nonnull NSString *)uri)
 {
-  NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"snapshot"];
+  NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"ReactNative"];
   // Ensure it's a valid file in the tmp directory
   if ([uri hasPrefix:directory] && ![uri isEqualToString:directory]) {
     NSFileManager *fileManager = [NSFileManager new];
@@ -73,8 +73,8 @@ RCT_EXPORT_METHOD(captureRef:(nonnull NSNumber *)target
         NSString *format = [RCTConvert NSString:options[@"format"]];
         NSString *result = [RCTConvert NSString:options[@"result"]];
         BOOL snapshotContentContainer = [RCTConvert BOOL:options[@"snapshotContentContainer"]];
-       
-//        NSMutableArray *imageArray = [NSMutableArray arrayWithCapacity:[targetList count]];
+        BOOL saveToPhotosAlbum = [RCTConvert BOOL:options[@"saveToPhotosAlbum"]];
+
         UIImage *lastImage = nil;
         for (NSInteger i = 0; i < [targetList count]; i++) {
             NSNumber* target = targetList[i];
@@ -162,6 +162,10 @@ RCT_EXPORT_METHOD(captureRef:(nonnull NSNumber *)target
 //            [imageArray addObject:image];
         }
         
+        if (saveToPhotosAlbum) {
+            UIImageWriteToSavedPhotosAlbum(lastImage, nil, nil, nil);
+        }
+
         // Convert image to data (on a background thread)
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             

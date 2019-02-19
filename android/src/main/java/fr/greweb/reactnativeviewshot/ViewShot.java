@@ -1,6 +1,7 @@
 package fr.greweb.reactnativeviewshot;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -8,6 +9,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringDef;
@@ -124,6 +126,8 @@ public class ViewShot implements UIBlock {
     @Results
     private final String result;
     private final Promise promise;
+    // 保存图片到系统相册
+    private final Boolean saveToPhotosAlbum;
     private final Boolean snapshotContentContainer;
     @SuppressWarnings({"unused", "FieldCanBeLocal"})
     private final ReactApplicationContext reactContext;
@@ -145,6 +149,7 @@ public class ViewShot implements UIBlock {
             @Nullable Integer height,
             final File output,
             @Results final String result,
+            final Boolean saveToPhotosAlbum,
             final Boolean snapshotContentContainer,
             final ReactApplicationContext reactContext,
             final Activity currentActivity,
@@ -157,6 +162,7 @@ public class ViewShot implements UIBlock {
         this.height = height;
         this.output = output;
         this.result = result;
+        this.saveToPhotosAlbum = saveToPhotosAlbum;
         this.snapshotContentContainer = snapshotContentContainer;
         this.reactContext = reactContext;
         this.currentActivity = currentActivity;
@@ -396,11 +402,26 @@ public class ViewShot implements UIBlock {
             bitmap.compress(cf, (int) (100.0 * quality), os);
         }
 
+        if (this.saveToPhotosAlbum) {
+            saveToPhotosAlbum(bitmap);
+        }
+
         recycleBitmap(bitmap);
 
         final Point resolution = new Point(viewsWidth, viewsHeight);
 
         return resolution; // return image width and height
+    }
+
+    private void saveToPhotosAlbum (Bitmap bitmap) {
+        if (currentActivity != null) {
+            // 把文件插入到系统图库
+            String filePath = MediaStore.Images.Media.insertImage(currentActivity.getContentResolver(), bitmap, "", "");
+            // 保存图片后发送广播通知更新数据库
+            if (filePath != null) {
+                currentActivity.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(new File(filePath))));
+            }
+        }
     }
 
     /**

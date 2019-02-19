@@ -158,6 +158,7 @@ public class RNViewShotModule extends ReactContextBaseJavaModule {
         final Integer scaleHeight = options.hasKey("height") ? (int) (dm.density * options.getDouble("height")) : null;
         final String resultStreamFormat = options.getString("result");
         final Boolean snapshotContentContainer = options.getBoolean("snapshotContentContainer");
+        final Boolean saveToPhotosAlbum = options.hasKey("saveToPhotosAlbum") && options.getBoolean("saveToPhotosAlbum");
         final Boolean useInternalStorage = options.hasKey("useInternalStorage") && options.getBoolean("useInternalStorage");
 
         try {
@@ -171,7 +172,7 @@ public class RNViewShotModule extends ReactContextBaseJavaModule {
 
             uiManager.addUIBlock(new ViewShot(
                             tags, extension, imageFormat, quality,
-                            scaleWidth, scaleHeight, outputFile, resultStreamFormat,
+                            scaleWidth, scaleHeight, outputFile, resultStreamFormat, saveToPhotosAlbum,
                             snapshotContentContainer, reactContext, activity, promise)
             );
         } catch (final Throwable ex) {
